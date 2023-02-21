@@ -15,6 +15,8 @@ import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Insets;
 import java.awt.event.ItemListener;
+import java.util.Dictionary;
+import java.util.Hashtable;
 import java.util.Vector;
 import java.util.function.Consumer;
 
@@ -66,6 +68,23 @@ public final class Main {
                 .build()
         );
         addItemListener(inputSetBox, grapher.getGrapher()::setInputSet);
+        JLabel inputOffsetLabel = new JLabel("Input offset");
+        JSlider inputOffsetSlider = new JSlider(-100, 100, 0);
+        inputOffsetSlider.setPaintTicks(true);
+        inputOffsetSlider.setSnapToTicks(true);
+        inputOffsetSlider.setPaintLabels(true);
+        inputOffsetSlider.setMajorTickSpacing(20);
+        Dictionary<Integer, JLabel> labels = new Hashtable<>();
+        labels.put(-100, new JLabel("-5,0"));
+        labels.put(0, new JLabel("0,0"));
+        labels.put(100, new JLabel("5,0"));
+        inputOffsetSlider.setLabelTable(labels);
+        inputOffsetSlider.addChangeListener(e -> {
+            JSlider slider = (JSlider) e.getSource();
+            int raw = slider.getValue();
+            double mapped = Mth.map(raw, slider.getMinimum(), slider.getMaximum(), -5, 5);
+            grapher.setInputOffset(mapped);
+        });
         JLabel inputCurveLabel = new JLabel("Input curve");
         JLabel outputCurveLabel = new JLabel("Output curve");
         JComboBox<ComboEntry<NumberCurve>> inputCurveBox = new JComboBox<>(getAllCurves());
@@ -84,12 +103,14 @@ public final class Main {
                 .addGroup(groupLayout.createParallelGroup()
                     .addComponent(functionLabel)
                     .addComponent(inputSetLabel)
+                    .addComponent(inputOffsetLabel)
                     .addComponent(inputCurveLabel)
                     .addComponent(outputCurveLabel))
                 .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(groupLayout.createParallelGroup()
                     .addComponent(functionBox)
                     .addComponent(inputSetBox)
+                    .addComponent(inputOffsetSlider)
                     .addComponent(inputCurveBox)
                     .addComponent(outputCurveBox))
         );
@@ -102,6 +123,10 @@ public final class Main {
                 .addGroup(groupLayout.createParallelGroup(GroupLayout.Alignment.BASELINE)
                     .addComponent(inputSetLabel)
                     .addComponent(inputSetBox))
+                .addPreferredGap(LayoutStyle.ComponentPlacement.RELATED)
+                .addGroup(groupLayout.createParallelGroup(GroupLayout.Alignment.BASELINE)
+                    .addComponent(inputOffsetLabel)
+                    .addComponent(inputOffsetSlider))
                 .addPreferredGap(LayoutStyle.ComponentPlacement.UNRELATED)
                 .addGroup(groupLayout.createParallelGroup(GroupLayout.Alignment.BASELINE)
                     .addComponent(inputCurveLabel)
@@ -126,6 +151,7 @@ public final class Main {
     private static final class JGrapher extends JComponent {
         private final Grapher grapher = new Grapher();
         private GraphableFunction function;
+        private double inputOffset;
 
         {
             grapher.addPropertyChangeListener(e -> {
@@ -158,6 +184,18 @@ public final class Main {
             repaint();
         }
 
+        public double getInputOffset() {
+            return inputOffset;
+        }
+
+        public void setInputOffset(double inputOffset) {
+            double old = this.inputOffset;
+            this.inputOffset = inputOffset;
+            firePropertyChange("inputOffset", old, inputOffset);
+            revalidate();
+            repaint();
+        }
+
         @Override
         protected void paintComponent(Graphics g) {
             if (function != null) {
@@ -167,7 +205,11 @@ public final class Main {
                 Dimension size = getSize(null);
                 size.width -= insets.left + insets.right;
                 size.height -= insets.top + insets.bottom;
-                grapher.graph(g, size, function);
+                GraphableFunction transformedFunction = GraphableFunction.of(
+                    x -> function.applyAsDouble(x + inputOffset),
+                    x -> function.acceptsInput(x + inputOffset)
+                );
+                grapher.graph(g, size, transformedFunction);
                 h.dispose();
             }
         }
